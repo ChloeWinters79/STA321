@@ -1,0 +1,412 @@
+---
+title: 'STA321: Week #04 Assignment'
+author: 'Chloe Winters'
+date: "9/22/2024"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    fig_width: 6
+    fig_height: 4
+    fig_caption: yes
+    number_sections: yes
+    toc_collapsed: yes
+    code_folding: hide
+    code_download: yes
+    smooth_scroll: yes
+    theme: lumen
+  pdf_document: 
+    toc: yes
+    toc_depth: 4
+    fig_caption: yes
+    number_sections: yes
+  word_document:
+    toc: yes
+    toc_depth: '4'
+---
+```{=html}
+
+<style type="text/css">
+
+/* Cascading Style Sheets (CSS) is a stylesheet language used to describe the presentation of a document written in HTML or XML. it is a simple mechanism for adding style (e.g., fonts, colors, spacing) to Web documents. */
+
+h1.title {  /* Title - font specifications of the report title */
+  font-size: 24px;
+  color: DarkRed;
+  text-align: center;
+  font-family: "Gill Sans", sans-serif;
+}
+h4.author { /* Header 4 - font specifications for authors  */
+  font-size: 20px;
+  font-family: system-ui;
+  color: DarkRed;
+  text-align: center;
+}
+h4.date { /* Header 4 - font specifications for the date  */
+  font-size: 18px;
+  font-family: system-ui;
+  color: DarkBlue;
+  text-align: center;
+}
+h1 { /* Header 1 - font specifications for level 1 section title  */
+    font-size: 22px;
+    font-family: system-ui;
+    color: navy;
+    text-align: left;
+}
+h2 { /* Header 2 - font specifications for level 2 section title */
+    font-size: 20px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h3 { /* Header 3 - font specifications of level 3 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h4 { /* Header 4 - font specifications of level 4 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: darkred;
+    text-align: left;
+}
+
+body { background-color:white; }
+
+.highlightme { background-color:yellow; }
+
+p { background-color:white; }
+
+</style>
+```
+
+```{r setup, include=FALSE}
+# code chunk specifies whether the R code, warnings, and output 
+# will be included in the output files.
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE,           # include code chunk in the output file
+                      warnings = FALSE,       # sometimes, you code may produce warning messages,
+                                              # you can choose to include the warning messages in
+                                              # the output file. 
+                      results = TRUE          # you can also decide whether to include the output
+                                              # in the output file.
+                      )   
+
+library(ggplot2)
+library(GGally)
+library(MASS)
+library(car)
+library("scales") 
+
+```
+
+
+
+```{r}
+url = "https://raw.githubusercontent.com/ChloeWinters79/STA321/refs/heads/main/Data/diabetes_prediction_dataset.csv"
+
+bmi.diabetes = read.csv(url, header = TRUE)
+
+```
+
+
+# Introduction
+
+This assignment is going to look into implementing various different model-building techniques in order to find the best model. 
+
+
+# Materials 
+
+## Description of Data Set
+
+This data set, Diabetes Prediction, is a combination of both demographic and medical data from over 100,000 patients including their diabetic status, which indicates whether or not the patient has diabetes but not what type of diabetes the patient has. The data set on diabetes prediction contains the following variables, 
+
+gender: chr
+
+age: num
+
+hypertension: int
+
+heart_disease: int
+
+smoking_history: chr
+
+bmi: num
+
+HbA1c_level: num
+
+blood_glucose_level: int
+
+diabetes: int
+
+However, while this data set was created with the original intention of helping predict whether or not a patient has diabetes, it will have a different purpose in this assignment. Instead, we will be looking at if variables like blood_glucose_level, heart_disease, diabetes, hypertension, and HbA1C_level can be used to predict a patients bmi. 
+
+## Exploratory Data Analysis
+
+```{r}
+HbA1c <- bmi.diabetes$HbA1c_level
+
+Diabetic <- bmi.diabetes$diabetes
+
+BloodGlucose <- bmi.diabetes$blood_glucose_level
+
+```
+
+Using the variables, HbA1c_level, blood_glucose_level, and diabetes to define the variable prediabetic as follows, prediabetic = TRUE if HbA1c_level > 5.69,  blood_glucose_level > 99 & diabetes < 1; prediabetic = FALSE otherwise. 
+
+According to the American Diabetes Association (ADA), a normal HbA1c level is under 5.7, while prediabetic is between 5.7 and 6.5, and anything above 6.5 is considered diabetic. Additionally, the ADA finds blood glucose levels under 100 to be withing the normal range, levels from 100 to 125 as prediabetic, and anything 126 or over as diabetic. 
+
+Using these parameters the variable prediabetic was created to look at patients who had both HbA1c_ and blood glucose levels that fell outside the normal range but were not diagnosed diabetics. 
+
+```{r}
+
+prediabetic = (HbA1c > 5.69)  & (BloodGlucose > 99) & (Diabetic < 1 )
+
+bmi.diabetes$prediabetic = as.character(prediabetic)
+
+```
+
+```{r}
+final.data = bmi.diabetes[, -c(1,5)]
+
+kable(head(final.data))
+```
+
+# Methodology and Analysis 
+
+## Model and Diagnostics
+
+```{r}
+full.model = lm(bmi ~ ., data = final.data)
+kable(summary(full.model)$coef, caption ="Statistics of Regression Coefficients")
+```
+``` {r}
+
+par(mfrow=c(2,2))
+plot(full.model)
+
+```
+ 
+Looking at the residual plots above there are some violations present. First, the variance of the residuals on the Residuals vs Fitted plot are not constant. Looking at the Q-Q plot, it clearly diverts off from a normal distribution. Additionally, there is some curvature present on the residual plot. 
+ 
+
+```{r}
+
+vif(full.model)
+
+```
+
+Since none of the variables depict a variance inflation factor (VIF) above 4 there does not appear to be any significant multicollinearity issues. We can use a bar plot to further confirm this information.
+
+``` {r}
+
+barplot(vif(full.model), main = "Diabetes Prediction VIF Values", horiz = FALSE)
+
+```
+
+The bar plot also depicts no variables with a VIF above 4, which further confirms that there are no significant multicollinearity issues. 
+
+## Box-Cox Transformation
+
+``` {r}
+par(pty = "s", mfrow = c(2, 2), oma=c(.1,.1,.1,.1), mar=c(4, 0, 2, 0))
+##
+boxcox(bmi ~ age + hypertension + heart_disease +  HbA1c_level
+       + log(blood_glucose_level) + diabetes + prediabetic, data = final.data, lambda = seq(-1, 1, length = 10), 
+       xlab=expression(paste(lambda, ": log blood_glucose_level")))
+##
+boxcox(bmi ~ age + hypertension + heart_disease + HbA1c_level  
+       + blood_glucose_level + diabetes + prediabetic, data = final.data, lambda = seq(-1, 1, length = 10), 
+       xlab=expression(paste(lambda, ": blood_glucose_level")))
+##
+boxcox(bmi ~ age + hypertension + heart_disease +  log(HbA1c_level)  
+       + blood_glucose_level + diabetes + prediabetic, data = final.data, lambda = seq(-1, 1, length = 10), 
+       xlab=expression(paste(lambda, ": log HbA1C_level")))
+##
+boxcox(bmi ~ age + hypertension + heart_disease +  log(HbA1c_level)  
+       + log(blood_glucose_level) + diabetes + prediabetic, data = final.data, lambda = seq(-1, 1, length = 10), 
+      xlab=expression(paste(lambda, ": log HbA1C_Levels, log blood_glucose_level")))
+##
+boxcox(bmi ~ log(age) + hypertension + heart_disease +  HbA1c_level 
+       + blood_glucose_level + diabetes + prediabetic, data = final.data, lambda = seq(-1.5, 1, length = 10), 
+      xlab=expression(paste(lambda, ": log age")))
+##
+boxcox(bmi ~ log(age) + hypertension + heart_disease +  log(HbA1c_level)  
+       + blood_glucose_level + diabetes + prediabetic, data = final.data, lambda = seq(-1.5, 1, length = 10), 
+      xlab=expression(paste(lambda, ": log age, log HbA1c_level")))
+
+##
+boxcox(bmi ~ log(age) + hypertension + heart_disease +  HbA1c_level  
+       + log(blood_glucose_level) + diabetes + prediabetic, data = final.data, lambda = seq(-1.5, 1, length = 10), 
+      xlab=expression(paste(lambda, ": log age, log blood_glucose_level")))
+
+## 
+
+boxcox(bmi ~ log(age) + hypertension + heart_disease +  log(HbA1c_level)  
+       + log(blood_glucose_level) + diabetes + prediabetic, data = final.data, lambda = seq(-1.5, 1, length = 10), 
+      xlab=expression(paste(lambda, ": log age, log HbA1c_level, log blood_glucose_level")))
+
+```
+
+The Box-cox transformation plots are used to determine the optimal \lamda under different transformed variables. The log transformation on age impacts the coefficient of the power transformation \lamda. 
+
+## Square-root Transformation
+
+Now it is time to depict the Box-Cox transformation with log-transformed age on the following model, 
+
+```{r}
+
+bmi.log.age = lm((bmi)^-0.5 ~ log(age) + hypertension + heart_disease +  HbA1c_level
+       + blood_glucose_level + diabetes + prediabetic, data = final.data)
+kable(summary(bmi.log.age)$coef, caption = "Age Log-Transformed Model")
+
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(bmi.log.age)
+
+```
+
+
+After the log-transformation there is some clear improvements to the residual diagnostic plots. The Q-Q plots depicts a significant improvement from the previous graph, but still has room to improve. Additionally the Residuals vs Fitted plot depicts more constant and equal variances, and it appears that the weak curvature has flattened out.
+
+In an effort to no have any violation with the assumption of normality, we can take a log transformation of bmi and build a model based on log bmi. 
+
+```{r}
+log.bmi = lm(log(bmi) ~ age + hypertension + heart_disease +  HbA1c_level
+       + blood_glucose_level + diabetes + prediabetic, data = final.data)
+
+kable(summary(log.bmi)$coef, caption = "BMI Log-Transformed Model")
+
+```
+```{r}
+par(mfrow = c(2,2))
+plot(log.bmi)
+
+```
+
+
+The residual diagnostic plots for the log(bmi) model do not depict a significant improvement for the assumption of normality, and brings back some of the weak curvature from the original models. This means that none of the three models statisfy the assumption of normality. 
+
+
+```{r}
+#define plotting area
+par(pty = "s", mfrow = c(1, 3))
+#Q-Q plot for original model
+qqnorm(full.model$residuals, main = "Full-Model")
+qqline(full.model$residuals)
+#Q-Q plot for Box-Cox transformed model
+qqnorm(log.bmi$residuals, main = "Log BMI")
+qqline(log.bmi$residuals)
+#display both Q-Q plots
+qqnorm(bmi.log.age$residuals, main = "BMI log Age")
+qqline(bmi.log.age$residuals)
+```
+
+
+## Goodness-of-Fit
+
+```{r}
+select=function(m){ # m is an object: model
+ e = m$resid                           # residuals
+ n0 = length(e)                        # sample size
+ SSE=(m$df)*(summary(m)$sigma)^2       # sum of squared error
+ R.sq=summary(m)$r.squared             # Coefficient of determination: R square!
+ R.adj=summary(m)$adj.r                # Adjusted R square
+ MSE=(summary(m)$sigma)^2              # square error
+ Cp=(SSE/MSE)-(n0-2*(n0-m$df))         # Mellow's p
+ AIC=n0*log(SSE)-n0*log(n0)+2*(n0-m$df)          # Akaike information criterion
+ SBC=n0*log(SSE)-n0*log(n0)+(log(n0))*(n0-m$df)  # Schwarz Bayesian Information criterion
+ X=model.matrix(m)                     # design matrix of the model
+ H=X%*%solve(t(X)%*%X)%*%t(X)          # hat matrix
+ d=e/(1-diag(H))                       
+ PRESS=t(d)%*%d   # predicted residual error sum of squares (PRESS)- a cross-validation measure
+ tbl = as.data.frame(cbind(SSE=SSE, R.sq=R.sq, R.adj = R.adj, Cp = Cp, AIC = AIC, SBC = SBC, PRD = PRESS))
+ names(tbl)=c("SSE", "R.sq", "R.adj", "Cp", "AIC", "SBC", "PRESS")
+ tbl
+ }
+
+```
+
+
+Note: Due to the size of the data set RStudio was unable to fun the code on Goodness of Fit could not run without crashing RStudio or exhausting the memory vector. To remedy this issue, a random sample of 10,000 observations was taken from the data set and used for the the following code. Anything using this random sample data set is depicted by ending in .rand. Due to this change in the data set, the Q-Q plots were reprinted to make sure this smaller sample of the data was still an accurate representation of the larger data set.
+
+```{r}
+
+final.data.rand <- final.data[sample(nrow(final.data), size = 10000, replace = FALSE), ]
+full.model.rand = lm(bmi ~ ., data = final.data.rand)
+log.bmi.rand = lm(log(bmi) ~ age + hypertension + heart_disease +  HbA1c_level
+       + blood_glucose_level + diabetes + prediabetic, data = final.data.rand)
+bmi.log.age.rand = lm((bmi)^-0.5 ~ log(age) + hypertension + heart_disease +  HbA1c_level
+       + blood_glucose_level + diabetes + prediabetic, data = final.data.rand)
+
+```
+
+
+```{r}
+
+par(pty = "s", mfrow = c(1, 3))
+#Q-Q plot for original model
+qqnorm(full.model.rand$residuals, main = "Full-Model")
+qqline(full.model.rand$residuals)
+#Q-Q plot for Box-Cox transformed model
+qqnorm(log.bmi.rand$residuals, main = "Log BMI")
+qqline(log.bmi$residuals)
+#display both Q-Q plots
+qqnorm(bmi.log.age.rand$residuals, main = "BMI log Age")
+qqline(bmi.log.age$residuals)
+```
+
+The Q-Q plots for the 10,000 observation data set is similar to the Q-Q plots for the 100,000 observation data set. Now, it is possible to move forward with the Goodness-of-Fit tests.
+
+
+
+``` {r}
+output.sum = rbind(select(full.model.rand), select(bmi.log.age.rand), select(log.bmi.rand))
+row.names(output.sum) = c("full.model.rand", "bmi.log.age.rand", "log.bmi.rand")
+kable(output.sum, caption = "Goodness-of-fit Measures of Candidate Models")
+```
+
+Looking at the outputs for **$R^2, R^2_{adj}$, and $C_p$** it is clear that the second model, bmi.log.age.rand is the best of the three models. This means the second model will be the final model. 
+
+## Final Model
+
+``` {r}
+
+kable(summary(bmi.log.age)$coef, caption = "Inferential Statistics on the Final Model")
+
+```
+
+Due the data set has over 100,000 observations the Central Limit Theorem can be used as the argument for validating the p-values. The variables log(age), hypertension, heart_disease, and diabetes all depict p-values close to zero meaning their coefficients are signifcantly differnt from 0. However, the variables HbA1c_level, blood_glucose_level, and prediabetic have p-values much higher than 0 which means these variables are not statistically significant when it comes to the prediction of bmi.  
+
+
+# Results and Conclusion
+
+## Summary of Model 
+
+The final model can be written as follows, 
+
+bmi = 0.2422 - 0.01335 x log(age) - 0.002768 x hypertension + 0.004024 x heart_disease - 0.007911 x diabetes
+
+The variables log(age), hpyertension and diabetes all have a negative association with bmi while heart_disease is the only variable with a positive association. 
+
+# General Discussion 
+
+Several regression techniques, including the Box-cox transformation was used to determine the final model in this study. While the final data set consists of 8 variables, 3 of them were not statistically significant and thus were not used in the final model. All of the models that were compared using the goodness-of-fit measure model criteria consisted of the same 8 variables. 
+
+However, due to the size of the original final data set being significantly large, with over 100,000 observations, a smaller random sample of the final data set, consisting of 10,000 observations was created to run the goodness-of-fit measure in a way that did not shutdown RStudio. Additionally, the goodness-of-fit measure was used due to the fact that the violation to the normality assumption on the residuals. This normality assumption remains uncorrected even after several transformation techniques were used on the data set. The central limit theorem (CLT) was used to base inferences on the regression coefficients. 
+
+The final model used the log(age) Box-cox transformation with a -0.5 adjustment on bmi. This model was selected over the full model and the log(bmi) model because even though none of the models met the normality assumption the log(age) model had the best **$R^2, R^2_{adj}$, and $C_p$** outputs after running the goodness-of-fit measure on all three models. Additionally, from the selected final model, three variables were removed from the original eight due to them having non-significant p-values. After removing those variables the final model was complete. 
+
+# References
+
+American Diabetes Association. (2023). Understanding Diabetes Diagnosis. Diabetes.org. https://diabetes.org/about-diabetes/diagnosis
+
+
+
