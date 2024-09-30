@@ -1,0 +1,410 @@
+---
+title: 'STA Project 1 - MLR & Bootstrapping'
+author: 'Chloe Winters'
+date: "9/29/2024"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    fig_width: 6
+    fig_height: 4
+    fig_caption: yes
+    number_sections: yes
+    toc_collapsed: yes
+    code_folding: hide
+    code_download: yes
+    smooth_scroll: yes
+    theme: lumen
+  pdf_document: 
+    toc: yes
+    toc_depth: 4
+    fig_caption: yes
+    number_sections: yes
+  word_document:
+    toc: yes
+    toc_depth: '4'
+---
+
+<style type="text/css">
+
+/* Cascading Style Sheets (CSS) is a stylesheet language used to describe the presentation of a document written in HTML or XML. it is a simple mechanism for adding style (e.g., fonts, colors, spacing) to Web documents. */
+
+h1.title {  /* Title - font specifications of the report title */
+  font-size: 24px;
+  color: DarkRed;
+  text-align: center;
+  font-family: "Gill Sans", sans-serif;
+}
+h4.author { /* Header 4 - font specifications for authors  */
+  font-size: 20px;
+  font-family: system-ui;
+  color: DarkRed;
+  text-align: center;
+}
+h4.date { /* Header 4 - font specifications for the date  */
+  font-size: 18px;
+  font-family: system-ui;
+  color: DarkBlue;
+  text-align: center;
+}
+h1 { /* Header 1 - font specifications for level 1 section title  */
+    font-size: 22px;
+    font-family: system-ui;
+    color: navy;
+    text-align: left;
+}
+h2 { /* Header 2 - font specifications for level 2 section title */
+    font-size: 20px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h3 { /* Header 3 - font specifications of level 3 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h4 { /* Header 4 - font specifications of level 4 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: darkred;
+    text-align: left;
+}
+
+body { background-color:white; }
+
+.highlightme { background-color:yellow; }
+
+p { background-color:white; }
+
+</style>
+
+```{r setup, include=FALSE}
+# code chunk specifies whether the R code, warnings, and output 
+# will be included in the output files.
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE,           # include code chunk in the output file
+                      warnings = FALSE,       # sometimes, you code may produce warning messages,
+                                              # you can choose to include the warning messages in
+                                              # the output file. 
+                      results = TRUE          # you can also decide whether to include the output
+                                              # in the output file.
+                      )   
+
+library(ggplot2)
+library(GGally)
+library(MASS)
+library(car)
+library("scales") 
+
+```
+
+# Introduction
+
+This project will demonstrate the use of variable selection to determine the final model. Bootstrapping procedures will be used to generate estimated confidence intervals for the coefficients of the regression model identified in a previous assignment. Specifically a model that looks at how different variables like age, hypertension, and diabetes can help predict a patients bmi. 
+
+## Description of the Dataset
+
+The data set being used is called Diabetes Prediction. The data set contains over 100,000 patient observations on both their medical and demographic information. This includes a patients diabetic status, hypertension status, heart disease status, as either having or not having the medical ailment. The full in order list of the data sets variables is as follows, 
+
+gender: chr
+
+age: num
+
+hypertension: int
+
+heart_disease: int
+
+smoking_history: chr
+
+bmi: num
+
+HbA1c_level: num
+
+blood_glucose_level: int
+
+diabetes: int
+
+
+# Materials
+
+## Data Preparation
+
+```{r}
+url = "https://raw.githubusercontent.com/ChloeWinters79/STA321/refs/heads/main/Data/diabetes_prediction_dataset.csv"
+bmi.diabetes = read.csv(url, header = TRUE)
+
+HbA1c <- bmi.diabetes$HbA1c_level
+Diabetic <- bmi.diabetes$diabetes
+BloodGlucose <- bmi.diabetes$blood_glucose_level
+
+
+prediabetic = (HbA1c > 5.69)  & (BloodGlucose > 99) & (Diabetic < 1 ) #create the variable prediabetic from those with blood glucose and HbA1c levels that fall above the normal range (determined by the American Diabetes Association) for non diabetic patients. 
+bmi.diabetes$prediabetic = as.character(prediabetic) #convert from logic to character
+```
+
+The variables HbA1c_level, blood_glucose_level, and diabetes are used to define the variable prediabetic. The variable prediabetic is defined as follows, prediabetic = TRUE if HbA1c_level > 5.69,  blood_glucose_level > 99 & diabetes < 1; prediabetic = FALSE otherwise. 
+
+American Diabetes Association (ADA) published that a normal HbA1c level is under 5.7, while a prediabetic HbA1c is between 5.7 and 6.5, and anything above 6.5 is considered diabetic. Additionally, the ADA finds that blood glucose (bg) levels under 100 are withing the normal range, bg levels from 100 to 125 are prediabetic, and bg levels 126 or over are diabetic. 
+
+These parameters from the ADA were used to create the variable prediabetic. Any patient with HbA1c and blood glucose levels outside of the normal range that are not diagnosed diabetics were flagged at prediabetic patients.  
+
+
+
+```{r}
+final.data = bmi.diabetes[, -c(1,5)] #remove gender and smoking_history, the variables not used in the initial candidate model
+kable(head(final.data))
+
+
+bmi.log.age = lm((bmi)^-0.5 ~ log(age) + hypertension + heart_disease +  HbA1c_level
+       + blood_glucose_level + diabetes + prediabetic, data = final.data)
+
+kable(summary(bmi.log.age)$coef, caption = "Inferential Statistics of Model")
+
+```
+
+
+Considering the fact that three variables have high p-values and low t-values, it seems like some backwards selection is necessary before moving forward. In this case we are going to use the t-statistic to decide which value to throw away during each step. The variable selection will stop when all variables have a t-value higher than 1. Since blood_glucose_level has the smallest t-value we will start by removing that variable from the model.
+
+```{r}
+
+bmi.log.age.6 = lm((bmi)^-0.5 ~ log(age) + hypertension + heart_disease +  HbA1c_level
+                 + diabetes + prediabetic, data = final.data)
+summary(bmi.log.age.6)
+```
+
+There are still variables with a t-statistic less than zero so the backwards selection continues until no more variable with a low t-statistic remain.
+
+```{r}
+
+bmi.log.age.5 = lm((bmi)^-0.5 ~ log(age) + hypertension + heart_disease +  HbA1c_level
+                 + diabetes, data = final.data)
+summary(bmi.log.age.5)
+
+# Output shows 1 remaining variable with a t-statistic under 1 so we continue with backwards selection. 
+
+bmi.log.age.4 = lm((bmi)^-0.5 ~ log(age) + hypertension + heart_disease
+                 + diabetes, data = final.data)
+summary(bmi.log.age.4)
+```
+
+Now that all the variables have a t-statistic above 1, we can continue onto determining the final model.
+
+```{r}
+
+bmi.coef.4 <- summary(bmi.log.age.4)$coef
+kable(summary(bmi.log.age.4)$coef, caption = "Inferential Statistics of Final Model")
+
+```
+
+The final model is,
+
+$$
+\text{bmi} ^ {-0.5} = 0.2424251 - 0.0133499\times \log(\text{age}) - 0.0027673\times \text{hypertension} + 
+0.0040239\times \text{heart_disease} - 0.0078379\times \text{diabetes} 
+$$
+
+# Methodology and Analysis
+
+## Bootstrapping
+
+Now that the final model has been determine, bootstrapping can be used to help find the confidence intervals for the coefficients in the final regression model. 
+
+```{r}
+B = 1000       # choose the number of bootstrap replicates.
+## 
+num.p = dim(model.frame(bmi.log.age.4))[2]  # returns number of parameters in the model
+smpl.n = dim(model.frame(bmi.log.age.4))[1] # sample size
+## zero matrix to store bootstrap coefficients 
+coef.mtrx = matrix(rep(0, B*num.p), ncol = num.p)       
+## 
+for (i in 1:B){
+  bootc.id = sample(1:smpl.n, smpl.n, replace = TRUE) # fit final model to the bootstrap sample
+  bmi.log.age.boot = lm((bmi)^-0.5 ~ log(age) + hypertension + heart_disease
+                 + diabetes, data = final.data[bootc.id,])     
+  coef.mtrx[i,] = coef(bmi.log.age.boot)}    # extract coefs from bootstrap regression model    
+```
+
+### Histograms
+
+An R function was defined to make the histograms of the bootstrap regression coefficients. This function is also used later on to create the histograms for the residual bootstrap estimated regression coefficients. 
+
+```{r}
+boot.hist = function(bmi.coef.4, bt.coef.mtrx, var.id, var.nm){
+  x1.1 <- seq(min(bt.coef.mtrx[,var.id]), max(bt.coef.mtrx[,var.id]), length=300 )
+  y1.1 <- dnorm(x1.1, mean(bt.coef.mtrx[,var.id]), sd(bt.coef.mtrx[,var.id]))
+  highestbar = max(hist(bt.coef.mtrx[,var.id], plot = FALSE)$density) 
+  ylimit <- max(c(y1.1,highestbar))
+  hist(bt.coef.mtrx[,var.id], probability = TRUE, main = var.nm, xlab="", 
+       col = "azure1",ylim=c(0,ylimit), border="lightseagreen")
+  lines(x = x1.1, y = y1.1, col = "red3")
+  lines(density(bt.coef.mtrx[,var.id], adjust=2), col="blue")}
+```
+
+```{r fig.align='center', fig.width= 9, fig.height= 7}
+par(mfrow=c(2,3))  # histograms of bootstrap coefs
+boot.hist(bt.coef.mtrx=coef.mtrx, var.id=1, var.nm ="Intercept" )
+boot.hist(bt.coef.mtrx=coef.mtrx, var.id=2, var.nm ="Log Age" )
+boot.hist(bt.coef.mtrx=coef.mtrx, var.id=3, var.nm ="Hypertension" )
+boot.hist(bt.coef.mtrx=coef.mtrx, var.id=4, var.nm ="Heart Disease" )
+boot.hist(bt.coef.mtrx=coef.mtrx, var.id=5, var.nm ="Diabetes" )
+```
+
+The histograms were created to depict to normal density curves on top of each of the histograms. The first curve is red and it uses the estimated regression coefficients and their standard error in the output of the regression procedure. The red curve is the basis for the reported p-values. The second curve on the histograms is blue. The blue curve is a non-parametric estimate of the density of the bootstrap sampling distribution. The blue curve is the basis for the reported confidence intervals. 
+
+All of the density curves on the histograms seem to be quite close, with some of them even sharing a substantial amount of overlap. None of the curves appear to show any skewness, they are all normally distributed. 
+
+### Confidence Intervals
+
+```{r}
+num.p = dim(coef.mtrx)[2]
+boot.ci = NULL
+boot.wd = NULL
+for (i in 1:num.p){
+  lowerci0.025 = round(quantile(coef.mtrx[, i], 0.025, type = 2), 8)
+  upperci0.975 = round(quantile(coef.mtrx [, i], 0.975, type =2), 8)
+  boot.wd[i] = upperci0.975 - lowerci0.025
+  boot.ci[i] = paste ("[", round(lowerci0.025, 4), " , ", round(upperci0.975,4), "]")}
+
+kable(as.data.frame(cbind(formatC(bmi.coef.4, 4, format = "f"), boot.ci.95=boot.ci)), caption = "Regression Coefficient Matrix With 95% Residiual Bootstrap Confidence Interval")
+```
+Looking at the confidence intervals for the variables, we want to confirm that none of them contain the value 0. From the output, it seems that none of the 95% confidence intervals span 0 and they are all consistent. Additionally, all the p-values are smaller than 0.05. This output aligns with what is depicted in the normal density curves on the histograms above. 
+
+## Bootstrapping Residuals
+
+Now we are going use the bootstrap residual methods to create bootstrap confidence intervals. 
+
+### Residuals 
+
+
+```{r}
+hist(sort(bmi.log.age.4$residuals),
+     xlab = "Residuals",
+     main = "Histogram of Residuals")
+```
+
+The residual plot shows that the distribution of the residuals has no outlines and appears to have a normal distribution. 
+
+
+Now we are going to use the below code to generate the bootstrap confidence intervals of the regression coefficients
+
+```{r}
+final.bmi.model = lm((bmi)^-0.5 ~ log(age) + hypertension + heart_disease
+                 + diabetes, data = final.data)
+
+model.residual = final.bmi.model$residuals
+num.p = dim(model.matrix(final.bmi.model))[2]
+sample.num = dim(model.matrix(final.bmi.model))[1]
+boot.matrix = matrix(rep(0,5*B), ncol = num.p)
+
+for (i in 1:B) {
+  boot.log.bmi = final.bmi.model$fitted.values +
+  sample(final.bmi.model$residuals, sample.num, replace = TRUE)
+  final.data$boot.log.bmi = boot.log.bmi
+  bootr.model = lm(boot.log.bmi ~ log(age) + hypertension + heart_disease
+                 + diabetes, data = final.data)   
+  boot.matrix[i, ] = bootr.model$coefficients}
+```
+
+
+
+### Histograms
+
+Now using the function that was mentioned earlier we are going to make the histograms of the residual bootstrap estimates of the regression coefficients. 
+
+```{r}
+boot.res.hist = function(bt.res.mtrx, var.id, var.nm){
+  x1.1 <- seq(min(bt.res.mtrx[,var.id]), max(bt.res.mtrx[,var.id]), length=300 )
+  y1.1 <- dnorm(x1.1, mean(bt.res.mtrx[,var.id]), sd(bt.res.mtrx[,var.id]))
+  highestbar = max(hist(bt.res.mtrx[,var.id], plot = FALSE)$density) 
+  ylimit <- max(c(y1.1,highestbar))
+  hist(bt.res.mtrx[,var.id], probability = TRUE, main = var.nm, xlab="", 
+       col = "azure1",ylim=c(0,ylimit), border="lightseagreen")
+  lines(x = x1.1, y = y1.1, col = "red3")
+  lines(density(bt.res.mtrx[,var.id], adjust=2), col="blue")}
+```
+
+```{r fig.align='center', fig.width= 9, fig.height= 7}
+par(mfrow=c(2,3))  # histograms of bootstrap residuals
+boot.res.hist(bt.res.mtrx=boot.matrix, var.id=1, var.nm ="Intercept" )
+boot.res.hist(bt.res.mtrx=boot.matrix, var.id=2, var.nm ="Log Age" )
+boot.res.hist(bt.res.mtrx=boot.matrix, var.id=3, var.nm ="Hypertension" )
+boot.res.hist(bt.res.mtrx=boot.matrix, var.id=4, var.nm ="Heart Disease" )
+boot.res.hist(bt.res.mtrx=boot.matrix, var.id=5, var.nm ="Diabetes" )
+```
+
+The curves on all the histograms seem to be very close and have good overlap similar to the earlier histograms. There does seems to be some slight skewness from the center for both the Intercept and Log Age histograms, however the skewness seems to be very slight and nothing to be extremely concerned with. The confidence intervals should yield similar information to the histograms so we can confirm that the skewness is minor when analyzing the confidence intervals. The 95% residual bootstrap confidence intervals are given below,
+
+### Confidence Intervals
+
+```{r}
+num.p = dim(boot.matrix)[2]
+boot.r.ci = NULL
+boot.r.wd = NULL
+for (i in 1:num.p){
+  lowerci0.025.res = round(quantile(boot.matrix[, i], 0.025, type = 2), 8)
+  upperci0.975.res = round(quantile(boot.matrix [, i], 0.975, type =2), 8)
+  boot.r.wd[i] = upperci0.975.res - lowerci0.025.res
+  boot.r.ci[i] = paste ("[", round(lowerci0.025.res, 4), " , ", round(upperci0.975.res,4), "]")}
+
+kable(as.data.frame(cbind(formatC(bmi.coef.4, 4, format = "f"), boot.r.ci.95=boot.r.ci)), caption = "Regression Coefficient Matric")
+```
+The residual bootstrap confidence intervals yield the same results as the p-values. This is to be expected considering the significantly large sample size. The large sample size allows for the distribution of the estimated coefficients to have a good approximation of the normal distributions. 
+
+# Results and Conclusions
+
+## Inferential Statistics
+
+``` {r}
+kable(as.data.frame(cbind(formatC(bmi.coef.4[, -3], 4, format ="f"), btc.ct.95 = boot.ci, btr.ci.95 = boot.r.ci)),
+      caption = "Final Combined Inferential Statistics with p-values and Bootstrap Confidence Intervals")
+```
+
+Looking at the above output it is clear that the three methods yield the same results, which is the significance of the individual explanatory variables. This makes sense considering that the final model 
+$$ \text{bmi} = 0.2424251 - 0.0133499\times \log(\text{age}) - 0.0027673\times \text{hypertension} + 
+0.0040239\times \text{heart_disease} - 0.0078379\times \text{diabetes} $$
+does not have serious violations of the model assumptions. 
+
+``` {r}
+kable(round(cbind(boot.wd, boot.r.wd), 4), caption = "Widths of both Bootstrap Confidence Intervals")
+```
+
+The above table shows that the widths of the residual and case bootstrap confidence intervals are either very similar or exactly the same as each other. 
+
+``` {r}
+kable(bmi.coef.4, caption = "Inferential Statistics of Final Model")
+```
+
+The regression coefficients explain the correlation between the adjusted bmi and the corresponding variables, with log(age) instead of age. Taking into consideration that both the confidence intervals and the p-values depicted that these variables had a significant ability to determine the response variable that was not 0. We can determine that this model can be used to help predict a patients expected bmi based on their other factors like hypertension, and age. 
+
+Additionally, we can explain the estimated regression coefficient of -0.0078379	as follows, since diabetes is a binary variable it can only be expressed as 0 or 1. Due to the transformation on BMI during model building the variable diabetes would be expressed as follows, 
+
+$$
+Diabetes_1^{-0.5} - Diabetes_0^{-0.5} = -0.0078379
+$$
+Since, 1 raised to any power will always be 1, and 0 raised to -0.5 is undefined it simplifies to the following. 
+
+$$
+Diabetes_1  = -0.0078379
+$$
+Using this model, patients with diabetes with see a 0.78% decrease in the bmi of the patient. The other binary variables in the model can be interpreted similarly. 
+
+# General Discussion
+
+While the model depicted several significant predictive variables for the response variable in the context of this data set it is important to note that while the variables are significant their impact on the value of bmi itself is rather small. Unfortunately there is the misconception when it comes to the medical field that everyone who has issues like diabetes, hypertension, or heart disease must be overweight and all their problems come from being overweight. However, this model depicts only a small change to the predicted bmi if a patient has diabetes, hypertension, or heart disease or not. While the American Diabetes Association does note that having a higher bmi does put patients at risk for having diabetes, anyone can become diabetic, regardless of their weight. Any misconceptions on a exclusive relationship between bmi and diabetic status are simply that, misconceptions.
+
+Also, it is important to note that this data set is incredibly large with over 100,000 observations. Large data sets make it very easy to get p-values that are close to if not zero. Ideally, it would be better to use a smaller data set when analyzing the variables for the final model to see what the p-values look like when they are not pushed to zero by a large sample size. 
+
+However, the model was not determined solely on the p-value, and there was additional testing that took place. Additionally, while ethically using factors like hypertension, heart disease and diabetes should not be the main aspects of trying to determine a patients bmi. Due to the fact that is would most likely further the connotation that only people with those ailments have high bmi's, the model could technically be used in that way. 
+
+# References
+
+American Diabetes Association. (2023). Understanding Diabetes Diagnosis. Diabetes.org. https://diabetes.org/about-diabetes/diagnosis
+
+American Diabetes Association. Extra Weight, Extra Risk  Diabetes.org. https://diabetes.org/health-wellness/weight-management/extra-weight-extra-risk
+
+
