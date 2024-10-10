@@ -1,0 +1,157 @@
+---
+title: 'STA321: Week #02 Assignment'
+author: 'Chloe Winters'
+date: "9/8/2024"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    fig_width: 6
+    fig_height: 4
+    fig_caption: yes
+    number_sections: yes
+    toc_collapsed: yes
+    code_folding: hide
+    code_download: yes
+    smooth_scroll: yes
+    theme: lumen
+  pdf_document: 
+    toc: yes
+    toc_depth: 4
+    fig_caption: yes
+    number_sections: yes
+  word_document:
+    toc: yes
+    toc_depth: '4'
+---
+
+<style type="text/css">
+h1.title {
+  font-size: 20px;
+  color: DarkRed;
+  text-align: center;
+}
+h4.author { /* Header 4 - and the author and data headers use this too  */
+    font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkRed;
+  text-align: center;
+}
+h4.date { /* Header 4 - and the author and data headers use this too  */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+  text-align: center;
+}
+h1 { /* Header 3 - and the author and data headers use this too  */
+    font-size: 22px;
+    font-family: "Times New Roman", Times, serif;
+    color: darkred;
+    text-align: center;
+}
+h2 { /* Header 3 - and the author and data headers use this too  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h3 { /* Header 3 - and the author and data headers use this too  */
+    font-size: 15px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h4 { /* Header 4 - and the author and data headers use this too  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: darkred;
+    text-align: left;
+}
+</style>
+
+
+```{r setup, include=FALSE}
+# code chunk specifies whether the R code, warnings, and output 
+# will be included in the output files.
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE,           # include code chunk in the output file
+                      warnings = FALSE,       # sometimes, you code may produce warning messages,
+                                              # you can choose to include the warning messages in
+                                              # the output file. 
+                      results = TRUE          # you can also decide whether to include the output
+                                              # in the output file.
+                      )   
+```
+
+
+# Introduction
+
+This assignment is going to compare the confidence intervals of mean value of a varaible when using a t-test and bootstrapping. There will also be an analysis of the sampling distribution of the bootstrapped sample mean.  
+
+# Materials
+
+
+This data set breaks down the protein intake from different foods across 170 different countries. The variable being analyzed in this assignment is Milk Excluding Butter to delve deeper into the protein contents in milk products across different countries across the world. 
+
+# Methodolgy and Analysis
+
+## T -test 
+
+For a non-bootstrapped confidence interval, a one sample t-test was used to calculate a 95% confidence interval for the sample mean of the variable MilkExcludingButter. The mean amount of protein in milk excluding butter was 5.921159, 95%CI [5.326584, 6.515734]
+
+``` {r}
+url="https://pengdsci.github.io/STA321/ww02/w02-Protein_Supply_Quantity_Data.csv"
+protein = read.csv(url, header = TRUE)
+
+t.test(protein$MilkExcludingButter, alternative = "two.sided", mu=5, conf.level = 0.95 )
+
+```
+
+
+## Bootstraping 
+
+A sample population of 85, taken without replacement, was taken from the original data set which contained 170 observations. Using that sample, a bootstrap sampling was constructed, sampling with replacement from the 85 observation sample population. This bootstrap sampling created a sample with 1000 observations. A 95% confidence interval was created for the bootstrap sampling, 95%CI [4.815776, 6.49044].
+```{r}
+org.sample = sample(protein$MilkExcludingButter, 85, replace = FALSE) 
+
+
+bt.sample.mean.vec = NULL    
+
+for(i in 1:1000){
+  ith.bt.sample = sample( org.sample, 
+                          85, 
+                          replace = TRUE)                        
+  bt.sample.mean.vec[i] = mean(ith.bt.sample)
+  }
+
+
+
+CI = quantile(bt.sample.mean.vec, c(0.025, 0.975))
+CI
+kable(CI, caption = "95% bootstrap percentile confidence interval of the mean protein in milk excluding butter")
+```
+
+## Bootstrap Histogram
+
+A histogram was created to display the distribution of the bootstrap sampling sample means. The histogram an approximately normal distribution and appears to have its median in between 5.5-6.0, which does seem to align with the t-test sample mean of the data set being 5.921159. 
+
+``` {r}
+
+hist(bt.sample.mean.vec,                                       
+     breaks = 14,                                               
+     xlab = "Bootstrap sample means",                           
+     main="Bootstrap Sampling Distribution of the Sample Means") 
+
+```
+
+# Results and Conclusions 
+
+In comparing the confidence intervals for the t-test and bootstrap sampling, the t-test has a smaller range than the bootstrap confidence interval. While the 97.5% values are quite similar for both confidence intervals, both being around 6.5, the 2.5% values are about 0.5 away from each other. This also creates the mean for the bootstrap sample be closer to 5.65311, which is a little lower than the sample mean from the original data set, however we do not expect these values to be an exact match and that are roughly only 0.3 off from each other.
+
+# General Discussions
+
+Despite slightly difference both confidence intervals did both capture a majority of the same range and presented a similar mean value of protein in milk excluding butter. Using both methods we can come to the conclusion that the average amount of protein in milk exuding butter in countries across the world is in the range of 5.5-6.0. Using the t-test that mean would be 5.921159, 95%CI [5.326584, 6.515734] and using the bootstrap sampling that mean would be 5.65311, 95%CI [4.815776, 6.49044]. One limitation that should be important to note is that this method of bootstrap sampling will result in different sampling distributions every time it is run. So, while the confidence intervals and sample means are quite similar in this instance, it is not guarenteed that the results would be so close if we were to run this again with a new bootstrap sampling. 
+
