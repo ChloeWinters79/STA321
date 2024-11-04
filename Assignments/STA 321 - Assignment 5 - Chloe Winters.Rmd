@@ -1,0 +1,264 @@
+---
+title: "Posisson Regresssion of Cyclist Count on New York Bridges"
+author: "Chloé Winters"
+date: "11/3/2024"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    fig_width: 6
+    fig_height: 4
+    fig_caption: yes
+    number_sections: yes
+    toc_collapsed: yes
+    code_folding: hide
+    code_download: yes
+    smooth_scroll: yes
+    theme: lumen
+  pdf_document: 
+    toc: yes
+    toc_depth: 4
+    fig_caption: yes
+    number_sections: yes
+  word_document:
+    toc: yes
+    toc_depth: '4'
+---
+```{=html}
+
+<style type="text/css">
+
+/* Cascading Style Sheets (CSS) is a stylesheet language used to describe the presentation of a document written in HTML or XML. it is a simple mechanism for adding style (e.g., fonts, colors, spacing) to Web documents. */
+
+h1.title {  /* Title - font specifications of the report title */
+  font-size: 24px;
+  color: DarkRed;
+  text-align: center;
+  font-family: "Gill Sans", sans-serif;
+}
+h4.author { /* Header 4 - font specifications for authors  */
+  font-size: 20px;
+  font-family: system-ui;
+  color: DarkRed;
+  text-align: center;
+}
+h4.date { /* Header 4 - font specifications for the date  */
+  font-size: 18px;
+  font-family: system-ui;
+  color: DarkBlue;
+  text-align: center;
+}
+h1 { /* Header 1 - font specifications for level 1 section title  */
+    font-size: 22px;
+    font-family: system-ui;
+    color: navy;
+    text-align: left;
+}
+h2 { /* Header 2 - font specifications for level 2 section title */
+    font-size: 20px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h3 { /* Header 3 - font specifications of level 3 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: navy;
+    text-align: left;
+}
+
+h4 { /* Header 4 - font specifications of level 4 section title  */
+    font-size: 18px;
+    font-family: "Times New Roman", Times, serif;
+    color: darkred;
+    text-align: left;
+}
+
+body { background-color:white; }
+
+.highlightme { background-color:yellow; }
+
+p { background-color:white; }
+
+</style>
+```
+```{r setup, include=FALSE}
+
+#
+# specifications of outputs of code in code chunks
+knitr::opts_chunk$set(echo = TRUE,      
+                      warning = FALSE,   
+                      message = FALSE,  
+                      results  = TRUE     
+                      )   
+
+library(knitr)
+library(pander)
+library(mlbench)
+library(MASS)
+library(openxlsx)
+```
+
+```{r}
+id=sample(1:10, 1)
+dat <- read.xlsx("https://pengdsci.github.io/STA321/ww09/w09-AssignDataSet.xlsx", sheet = paste("data",id, sep = ""))
+write.csv(dat, paste("/Users/chloewinters/Desktop/Senior Year/STA 321/STA 321 -Fall 2024/",names(dat[6]), ".csv", sep=""))
+```
+
+
+# Introduction
+
+This assignment will analyze data bike count data for several bridges, keeping a count of cyclists entering and leaving the bridge. This assignment will utilize a poisson regression to look at the cyclist count for a particular bridge on different days of the week. 
+
+
+# Materials
+
+## Data Set
+
+A daily total bike count was conducted monthly on four different bridgees in New York, the Brooklyn Bridge, Manhattan Bridge, Williamsburg Bridge, and Queensboro Bridge. The bike total kept count of the total cyclists entering and leaving each bridge on a given day. The count data was collected by the Traffic Information Management System (TIMS). Each recorded response represents the total number of cyclists that entered and left that bridge in a 24 hour period. 
+
+
+```{r}
+url="https://ChloeWinters79.github.io/STA321/Data/QueensboroBridge.csv"
+bridge = read.csv(url, header = TRUE)
+bridge$Day = as.factor(bridge$Day)
+```
+
+
+```{r}
+data(bridge)
+kable(head(bridge), caption = "First few records in the data set") 
+```
+
+
+For this assignment we were randomly assigned a subset of the data set to analysis. The subset spans a one month period of observations for one of the four bridges. Our randomly assigned subset looks at the month of April for the Queensboro bridge. The data set, called stroke bridge, has 30 observations and 7 variables. One variable, Day is converted from a character variable to a factor variable with 7 factor levels, "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", and "Sunday". This change is made so the variable can be utilized in the analysis of the data set later on. 
+
+1.  Date: (chr) Used as the ID variable, the date that the observation was recorded
+2.  Day (factor) The day of the week the observation was recorded
+3.  HighTemp (num) The high temperature on the date of the observation
+4.  LowTemp (num) The low temperature on the date of the observation
+5.  Precipitation (num) The amount of precipitation recieved on the date of the observation
+6.  QueensboroBridge (int) The total amount of cyclists who entered and exited the Queensboro Bridge on the date of the observation
+7. Total (int) The total amount of cyclists who entered and exited any of the four bridges on the date of the observation
+
+# Methodolgy & Analysis
+
+To begin the analysis of the data set we are going to build a poisson frequency regression model. For now we are only going to look at the total cyclists for the Queensboro Bridge, using the variable QueensboroBridge and ignore the total cyclists across all four bridges. This model will be built with Queensboro as the primary response variable and Day, HighTemp, LowTemp and Precipitation as predictor variables. 
+
+```{r}
+model.freq <- glm(QueensboroBridge ~ Day + HighTemp + LowTemp + Precipitation, family = poisson(link = "log"), data = bridge)
+##
+pois.count.coef = summary(model.freq)$coef
+kable(pois.count.coef, caption = "The Poisson regression model for the counts of daily total bike counts for the Queensboro Bridge versus temperature and precipitation")
+
+```
+
+The table above for the regression coefficients shows that the variable LowTemp is insignificant. Additionally, for the factor variable Day, it shows that the days Monday and Thursday are insignificant. However, since Monday and Thursday are factors of the variable Day, this means Monday and Thursday are insignificantly different from the base factor, which in this case if Friday. This means there is no evidence to support that there should be any discrepancy between the amount of cyclists on the Queensboro Bridge on Friday, Monday or Thursday. This also means there is no evidence to support any type of discrepancy across the low temperature (LowTemp). It is important to note that just because there are some insignificant variables and factors in the model, the model is not null and void. The model has several significant variables and factors that make up a majority of the model. It is important that further analysis is done to determine if the model is meaningful. 
+
+Another important aspect to consider in the model is appropriateness, or goodness. The amount of cyclists on the Queensboro Bridge is dependent on the total amount of cyclists on New York bridges that day. If we were to ignore the total amount of cyclists that day it implies that the sample was not used effectively. Taking this into consideration it is important that we analyze a model where the amount of cyclists on the Queensboro Bridge recognized the total amount of cyclists on of the four New York bridges. 
+
+## Poisson Regression on Rates
+
+This model will assess the potential relationship between cyclists total and the variables dealing with the weather, HighTemp, LowTemp, and precipitation. It is important in this model that it is adjusts the relationship with the days of the week.
+
+```{r}
+model.rates <- glm(QueensboroBridge ~ Day + HighTemp + LowTemp + Precipitation, offset = log(Total), 
+                   family = poisson(link = "log"), data = bridge)
+kable(summary(model.rates)$coef, caption = "Poisson regression on the rate of cyclists on the Queensboro Bridge adjusted by the total population of cyclists.")
+```
+
+The model shows that the cyclist rate for the Queensboro Bridge is not identical for all days of the week. Some of the days like Monday, Sunday, and Tuesday have significant p-values. However, Saturday, Thursday, and Wednesday have insignificant p-values. Since Friday is the baseline factor in this model, this means that Friday had higher log rates. In this model the regression coefficients represents the difference of log rate between the reference day and the associated day. 
+
+```{r}
+model.rates <- glm(QueensboroBridge ~ Day + HighTemp + LowTemp + Precipitation, offset = log(Total), 
+                   family = quasipoisson, data = bridge)
+summary(model.rates)
+```
+
+
+Typically after running a summary on this quasipoisson model we would begin discussing an analysis of the variables and their relationship to each other. However, in this model there is one important thing to take not of, the dispersion parameter. Typically, we want a dispersion parameter equal to or at least somewhat close to 1. Unfortunately, this models dispersion rate. is 5.585139, which is much too high. Since this model has such a high dispersion rate, we are going to try and run another model under a different family to try and get a better dispersion rate for our analysis. 
+
+
+```{r}
+model.rates <- glm(QueensboroBridge ~ Day + HighTemp + LowTemp + Precipitation, offset = log(Total), 
+                   family = poisson, data = bridge)
+summary(model.rates)
+```
+
+After obtaining the dispersion parameter of the poisson family model from our earlier analysis, it is clear that this model has the better dispersion rate. Since this model has the better dispersion parameter, we will conduct our analysis on this model.  
+
+The intercept of this model represents the baseline log for cyclists rate on the factor Friday. The actual rate of cyclists, on the Queensboro bridge, on Fridays is $\exp(-1.2734285) \approx 27.99\%$. The intercept -0.0434718 is the difference between the log-rate for Friday, teh baseline day, and Monday for any given HighTemp, LowTemp, and precipitation. In more specific terms, $\log(R_{\text{Monday}}) - \log(R_{\text{Friday}}) = -0.0434718$ which is equal to $$\log \left( \frac{R_{\text{Monday}}}{R_{\text{Friday}}} \right) = -0.0434718 ~~~\Rightarrow~~~\frac{R_{\text{Monday}}}{R_{\text{Friday}}} = e^{-0.0434718} \approx 0.9574596$$ This means, the cyclist rate for the Queenboro bridge, when HighTemp, LowTemp and Precipitation are fixed, on Mondays is about 5% lower than it is on Fridays. 
+
+## Graphical Comparisons
+
+The Poisson regression model inferential tables from earlier print out numerical information regarding the potential discrepancy between days of the week. However, this is not intuitive so it is important to represent this information graphically. 
+
+Since we are currently only analysis the breakdown of rate of cyclists on the Queensboro bridge for the month of April, by day of the week our graph will have one line to analyze the potential discrepancy between the days of the week. This line will be built from the following model, and be built with the assumption of a fixed HighTemp, LowTemp, and Precipitation. $$ \text{Log-rate} = -1.2734285 - 0.0434718*DayMonday - 0.0141446*DaySaturday  \\ - 0.0451156*DaySunday  - 0.0151178*DayThursday - 0.0340079 *DayTuesday - 0.0019222*DayWednesday  \\- 0.0047334*HighTemp + 0.0027141*LowTemp + 0.1070336*Precipitation$$
+
+Additionally, the rate model can be written as follows, 
+ $$ \text{rate} = exp(-1.2734285 - 0.0434718*DayMonday - 0.0141446*DaySaturday  \\ - 0.0451156*DaySunday  - 0.0151178*DayThursday - 0.0340079 *DayTuesday - 0.0019222*DayWednesday  \\- 0.0047334*HighTemp + 0.0027141*LowTemp + 0.1070336*Precipitation)$$
+
+Now, it is time to make a table of cyclists rates for the different days of the week. The calculations are based on the regression equation with coefficients give above. However, the days are switched to follow the order of days of the week, Monday - Sunday instead of the order they follow in the table. Also, note that the variable day is an indicator variable with the possible values of either 0 or 1. In context, exp(-1.2734285) gives the cyclist rate for Fridays, and exp(-1.2734285 -0.0434718) gives the cyclist rate for Mondays. The rest of the calculations follow the same pattern. 
+
+```{r}
+# Queensboro
+Queens = c(exp(-1.2734285-0.0434718), #Monday
+           exp(-1.2734285-0.0340079), #Tuesday
+           exp(-1.2734285-0.0019222), #Wednesday
+           exp(-1.2734285-0.0151178), #Thursday
+            exp(-1.2734285), #Friday
+           exp(-1.2734285-0.0141446), #Saturday
+           exp(-1.2734285-0.0451156) #Sunday
+           ) 
+
+####
+```
+
+```{r}
+colors = c( "purple")
+plot(1:7,Queens, type="l", lty =1, col=colors[1], lwd = 2, 
+               xlab="", 
+               ylab="Cyclist Rate", 
+               xlim=c(1,7), 
+               ylim=c(0, 0.3), 
+               main="Cyclist Rate v.s Day",
+               axes=FALSE )
+axis(2)
+axis(1, labels=c("Monday","Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"), 
+            at = 1:7)
+points(1:7,Queens, pch=19,lwd = 2, col=colors[1])
+##
+
+##
+legend("bottomright", c("Queensrboro" ),
+                  pch=19:25, lty=1:4, lwd=rep(2,4), bty="n", 
+        col=colors)
+```
+
+The above graph depicts the break down of cyclists rates for the different days. While there does not seem to be any drastic discrepency in the rates, it also does not depict a straight line with no discrepancies Even the days Wednesday, Thursday, and Saturday, which had insignificant p-values, show a discrepancy between its rate and the rate of Friday, which is the baseline. 
+
+# Results and Conclusion
+
+The regression model based on the Queensboro cyclist count is not the best model since the information regarding total cyclist count is a key variable in the distribution of the cyclists. Including the total cyclists changes the significance of some of the factors and other variables.
+
+```{r}
+model.freq.pop <- glm(QueensboroBridge ~ Day + HighTemp + LowTemp + Precipitation + log(Total), family = poisson(link = "log"), 
+                      data = bridge)
+##
+pois.count.coef.pop = summary(model.freq.pop)$coef
+kable(pois.count.coef.pop, caption = "The Poisson regression model for 
+         the counts of cyclists on the Queensboro Bridge versus the day, 
+         temperature, precipitation, and total cyclists.")
+```
+
+The above table shows that adding in the total cyclists changes the p-values associated with the predictor variables. This makes sense considering, compared to other variables, total cyclists would be highly correlated to the total cyclists on the Queensboro Bridge. 
+
+We also see the days that are significant and insignificant change slightly. Instead of Wednesday, Thursday, and Saturday being insignificant, it is now Tuesday, Wednesday, and Thursday. So we see Saturday swap with Tuesday for insignificance in this new model. We also see the variable HighTemp switch from being significant to insignificant in this model. However, in with such a small model, with only 30 observations, it is not shocking that minor changes could shake up the results this much. Unfortunately, we currently only have this small subset of the larger data set to analyze and we make the best conclusions we can with the information available 
+
+There is a possible argument to make for grouping at the very least Wednesday and Thursday, since they are insignificant. However, with the flip between Tuesday and Saturday with the different models, it may be beneficial to look at additional subsets of the data set and see which grouping would make more sense. 
+
+# General Discussion
+
+While it can be said there appears to me a discrepancy with a majority of the days I think there is more analysis to be done here. The data set being used for this analysis only covers a one month span for one of the bridges. I think further analysis could be done on they days of the week for the different bridges and the different months. So, in the future a graph that depicts the day break down for the Queensboro bridge for the different months would give us additional insight into the discrepancy between days. Additionally, in looking at the same month, a breakdown of total cyclists on each bridge for the different days of the week. Having additional information to compare to would be incredibly useful. This is because without additional information from the source data set we could be looking at a subset that is a complete outlier, and while we think our model is appropriate and has statistical significance, it could be a poor representation of the data set as a whole. However, since we only have this specific subset of the data to analyze we can not compare it to the rest of the source data set and have to make the best conclusions given what we know from the source data. For future analysis and projects though, having additional sections of the data set to analyze would allow for more meaningful and accurate conclusions to be drawn about this specific subset.  
